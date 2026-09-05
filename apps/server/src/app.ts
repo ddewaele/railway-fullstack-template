@@ -1,5 +1,6 @@
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import path from "node:path";
@@ -28,6 +29,10 @@ export function createApp() {
     c.req.path.startsWith("/api/") ? c.json({ error: "Not found" }, 404) : c.text("Not found", 404),
   );
   app.onError((err, c) => {
+    // Preserve intentional HTTP errors (e.g. 401/403 thrown by middleware).
+    if (err instanceof HTTPException) {
+      return c.json({ error: err.message || err.getResponse().statusText }, err.status);
+    }
     console.error(err);
     return c.json({ error: isProd ? "Internal server error" : err.message }, 500);
   });

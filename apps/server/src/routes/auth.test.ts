@@ -5,6 +5,17 @@ import { cookieFromResponse, mockGoogle, signedInUser } from "../test/helpers.js
 const app = createApp();
 
 describe("GET /api/auth/google", () => {
+  it("returns 503 with a clear message when Google is not configured", async () => {
+    const { authRoutesWithEnv } = await import("../test/authRoutesWithEnv.js");
+    const unconfigured = await authRoutesWithEnv({
+      GOOGLE_CLIENT_ID: "",
+      GOOGLE_CLIENT_SECRET: "",
+    });
+    const res = await unconfigured.request("/google");
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining("not configured") });
+  });
+
   it("redirects to Google with the configured callback and a state cookie", async () => {
     const res = await app.request("/api/auth/google");
     expect(res.status).toBe(302);
