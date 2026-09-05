@@ -1,6 +1,7 @@
 {
   "name": "railway-fullstack-template",
   "private": true,
+  "type": "module",
   "version": "0.1.0",
   "description": "Vite + Hono + Postgres + Google SSO template, deployed on Railway",
   "license": "MIT",
