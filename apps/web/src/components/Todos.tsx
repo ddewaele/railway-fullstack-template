@@ -25,9 +25,14 @@ export function Todos({ user, onSignOut }: Props) {
       return;
     }
     setError(null);
-    const { todo } = await api.createTodo(parsed.data);
-    setTodos((prev) => [todo, ...(prev ?? [])]);
-    setTitle("");
+    setTitle(""); // clear immediately so fast typists can continue
+    try {
+      const { todo } = await api.createTodo(parsed.data);
+      setTodos((prev) => [todo, ...(prev ?? [])]);
+    } catch (e) {
+      setTitle(parsed.data.title); // give the text back on failure
+      setError(e instanceof Error ? e.message : "Could not add todo");
+    }
   }
 
   async function toggle(todo: Todo) {
