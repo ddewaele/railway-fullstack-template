@@ -4,6 +4,7 @@ import { logger } from "hono/logger";
 import { secureHeaders } from "hono/secure-headers";
 import path from "node:path";
 import { env, isProd } from "./env.js";
+import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
 
 /**
@@ -16,7 +17,7 @@ export function createApp() {
   if (env.NODE_ENV !== "test") app.use(logger());
   app.use(secureHeaders());
 
-  const api = new Hono().route("/health", healthRoutes);
+  const api = new Hono().route("/health", healthRoutes).route("/auth", authRoutes);
 
   app.route("/api", api);
   app.notFound((c) =>
