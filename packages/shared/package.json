@@ -1,0 +1,17 @@
+{
+  "name": "@repo/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "echo 'shared is consumed from source; nothing to build'",
+    "test": "echo 'no tests in shared'"
+  },
+  "dependencies": {
+    "zod": "^4.5.4"
+  }
+}

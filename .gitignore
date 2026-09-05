@@ -1,0 +1,22 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+
+# environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# playwright
+test-results/
+playwright-report/
+blob-report/
+
+# railway
+.railway/plan.json
+railway-plan.json
+
+# local scratch notes (not part of the template)
+ignore/
