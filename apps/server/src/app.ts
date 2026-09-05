@@ -32,10 +32,12 @@ export function createApp() {
     return c.json({ error: isProd ? "Internal server error" : err.message }, 500);
   });
 
-  // Serve the built frontend (apps/web/dist) with an SPA fallback to index.html.
+  // Serve the built frontend (apps/web/dist) with an SPA fallback to index.html
+  // for any non-API GET, so client-side routes like /login deep-link correctly.
   const staticRoot = path.relative(process.cwd(), path.resolve(env.STATIC_DIR ?? "apps/web/dist"));
+  const spaFallback = serveStatic({ root: staticRoot, path: "index.html" });
   app.get("/*", serveStatic({ root: staticRoot }));
-  app.get("/*", serveStatic({ root: staticRoot, path: "index.html" }));
+  app.get("/*", (c, next) => (c.req.path.startsWith("/api/") ? next() : spaFallback(c, next)));
 
   return app;
 }
