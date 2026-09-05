@@ -221,6 +221,8 @@ Rename checklist: `name` fields in `package.json` files, `REPO`/`APP_NAME` in
 
 ## Manual steps that cannot be automated
 
+Copy-pasteable commands for every step below live in [MANUAL_STEPS.md](MANUAL_STEPS.md).
+
 These need a human with a browser or a password manager:
 
 | Step                              | Why manual                                                                            | Where                                                                                                                                                                                                                                                                                                   |
