@@ -19,7 +19,7 @@ import { defineRailway, github, postgres, preserve, project, service } from "rai
  */
 const REPO = "ddewaele/railway-fullstack-template";
 const APP_NAME = "app";
-const REGION = "europe-west4"; // Amsterdam. See https://docs.railway.com/deployments/regions
+const REGION = "ams"; // Amsterdam (Railway region id; europe-west4 is the legacy name). See https://docs.railway.com/deployments/regions
 
 export default defineRailway((ctx) => {
   const db = postgres("Postgres", { region: REGION });
@@ -34,7 +34,9 @@ export default defineRailway((ctx) => {
     healthcheck: "/api/health",
     healthcheckTimeout: 120,
     replicas: { [REGION]: 1 },
-    deploy: { restartPolicyType: "ON_FAILURE", restartPolicyMaxRetries: 5 },
+    // ON_FAILURE is Railway's default and is stored as null, so declaring it would show as
+    // permanent drift in `railway config plan`; only the retry count is explicit.
+    deploy: { restartPolicyMaxRetries: 5 },
     env: {
       NODE_ENV: "production",
       DATABASE_URL: db.env.DATABASE_URL,

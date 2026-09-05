@@ -132,6 +132,7 @@ pnpm dev                      # server :3000, web :5173
 
 ## Known gotchas
 
+- Railway region ids are short codes (`ams`, `iad`, `sin`, ...). `europe-west4` is the legacy name; using it in `.railway/railway.ts` shows up as a destructive "move database" in `railway config plan`.
 - Railway Hobby allows one region per service. Move a service with `{"<old>": null, "<new>": {"numReplicas": 1}}`; adding a region without removing the old one is rejected as multi-region.
 - Some Railway staged changes require 2FA and can only be applied in the dashboard.
 - `.env` is git-ignored and only loaded outside production; Railway reads service variables exclusively.
