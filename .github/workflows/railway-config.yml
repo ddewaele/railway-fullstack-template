@@ -1,5 +1,6 @@
 # Infrastructure as Code for Railway: plan on PR, apply the *reviewed* plan on merge.
 # Requires the RAILWAY_TOKEN repository secret (Railway project token, production env).
+# Until that secret exists the jobs print a notice and skip instead of failing.
 # See https://github.com/railwayapp/config
 name: Railway config
 
@@ -14,13 +15,20 @@ permissions:
   pull-requests: write
   actions: read
 
+env:
+  RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
 jobs:
   plan:
     if: github.event.action != 'closed' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: railwayapp/config@v1
+      - if: env.RAILWAY_TOKEN == ''
+        run: echo "::notice title=Railway config skipped::Set the RAILWAY_TOKEN repository secret to enable IaC plans (see .railway/README.md)."
+      - if: env.RAILWAY_TOKEN != ''
+        uses: actions/checkout@v4
+      - if: env.RAILWAY_TOKEN != ''
+        uses: railwayapp/config@v1
         with:
           command: plan
           railway-token: ${{ secrets.RAILWAY_TOKEN }}
@@ -29,10 +37,14 @@ jobs:
     if: github.event.action == 'closed' && github.event.pull_request.merged && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - if: env.RAILWAY_TOKEN == ''
+        run: echo "::notice title=Railway config skipped::Set the RAILWAY_TOKEN repository secret to enable IaC applies (see .railway/README.md)."
+      - if: env.RAILWAY_TOKEN != ''
+        uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
-      - uses: railwayapp/config@v1
+      - if: env.RAILWAY_TOKEN != ''
+        uses: railwayapp/config@v1
         with:
           command: apply
           railway-token: ${{ secrets.RAILWAY_TOKEN }}
