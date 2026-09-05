@@ -28,7 +28,21 @@ const google = googleAuth({
   redirect_uri: `${env.APP_URL}${CALLBACK_PATH}`,
 });
 
+const googleConfigured = env.GOOGLE_CLIENT_ID !== "" && env.GOOGLE_CLIENT_SECRET !== "";
+
 export const authRoutes = new Hono()
+  // Fail loudly (and early) when the OAuth client has not been configured yet.
+  .use("/google/*", async (c, next) => {
+    if (!googleConfigured) {
+      return c.json(
+        {
+          error: "Google sign-in is not configured: set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET",
+        },
+        503,
+      );
+    }
+    await next();
+  })
   .get("/google", google)
   .get("/google/callback", google, async (c) => {
     const profile = c.get("user-google");
