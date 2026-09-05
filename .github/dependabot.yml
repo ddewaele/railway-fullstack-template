@@ -7,6 +7,13 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Track the Node 22 runtime declared in .nvmrc / engines.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # Major TypeScript upgrades are evaluated deliberately, not auto-bumped.
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

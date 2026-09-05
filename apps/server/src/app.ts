@@ -6,6 +6,7 @@ import path from "node:path";
 import { env, isProd } from "./env.js";
 import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
+import { todoRoutes } from "./routes/todos.js";
 
 /**
  * Builds the Hono application. Exported separately from the HTTP listener so
@@ -17,7 +18,10 @@ export function createApp() {
   if (env.NODE_ENV !== "test") app.use(logger());
   app.use(secureHeaders());
 
-  const api = new Hono().route("/health", healthRoutes).route("/auth", authRoutes);
+  const api = new Hono()
+    .route("/health", healthRoutes)
+    .route("/auth", authRoutes)
+    .route("/todos", todoRoutes);
 
   app.route("/api", api);
   app.notFound((c) =>

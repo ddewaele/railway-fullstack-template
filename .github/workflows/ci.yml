@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+  # Required for the merge queue: GitHub runs CI on the queued merge commit.
+  merge_group:
   push:
     branches: [main]
 
