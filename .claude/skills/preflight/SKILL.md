@@ -40,7 +40,28 @@ approved. This skill front-loads those discoveries.
    `gh auth login`, `gh auth refresh -s workflow`, `railway login`, `docker start`, freeing a port,
    creating the Google OAuth client (console link + both redirect URIs), `export GH_TOKEN=...`.
    Tell them these can run while the agent scaffolds code, and which later steps block on each.
-5. Only then move to planning. Put the user tasks as **step 0** of the plan and reference them.
+5. Turn every ⚠️ into a concrete guard in the very next command that could trip on it. Examples from
+   past runs: SSH identity ≠ `gh` account → create the repo **without** `--push`, set an HTTPS remote
+   and a repo-local `credential.helper '!gh auth git-credential'`, then push; a stale Docker volume
+   for this directory name → `docker compose down -v` before `up`; occupied ports → pick the new
+   ports once and use them everywhere (compose, `.env.example`, Vite proxy, docs).
+6. Only then move to planning. Put the user tasks as **step 0** of the plan and reference them.
+
+## Plan approval (do not skip)
+
+The user approves the plan **once**, so they must actually see it. Writing it to a plan file is not
+showing it; exiting plan mode is not approval.
+
+1. Resolve placeholders first. If the brief still contains `<owner>/<repo>`, `<workspace>`,
+   `<region>` or an unstated merge-message policy, ask them in **one** AskUserQuestion together with
+   any preflight decisions from step 3. Recommend a default for each.
+2. Post the plan **in the chat** as a compact document: step 0 (user tasks with what they block),
+   branch sequence, provisioning path (CLI IaC or MCP, and why), merge-message policy, Dependabot
+   timing, verification section. A file path is not enough.
+3. Wait for an explicit "yes" (AskUserQuestion with an "Approve plan" option, or the ExitPlanMode
+   approval). Until then: no writes, no repo creation, no `railway init`.
+4. After approval, report only decisions that change the plan and steps only the user can do, plus a
+   one-line status every few tool calls so long silent stretches do not look like a hang.
 
 ## Rules
 

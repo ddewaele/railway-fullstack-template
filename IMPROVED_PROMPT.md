@@ -36,9 +36,13 @@ re-debate the fixed decisions in it.
 
 ## How to work
 
-- Plan first (plan mode). Include: the user task list from preflight as step 0, the feature-branch
-  sequence, the Railway provisioning path (IaC via CLI if `railway whoami` works, otherwise MCP, and
-  say which), the merge-message policy, when Dependabot is enabled, and a verification section.
+- Plan first. If any fact above is still a `<placeholder>`, ask me for it together with the other
+  plan-changing decisions in one question. Then **post the full plan in this chat** (not only in a
+  plan file) and wait for my explicit approval before creating anything. Include: the user task list
+  from preflight as step 0, the feature-branch sequence, the Railway provisioning path (IaC via CLI if
+  `railway whoami` works, otherwise MCP, and say which), the merge-message policy, when Dependabot is
+  enabled, how much of the reference code you will reuse verbatim, and a verification section.
+- Give me a one-line status every few tool calls; announce destructive operations before running them.
 - Feature branches, one slice each, in this order: server foundation + CI → auth → domain API → web →
   e2e → infrastructure as code → docs. Use the `ship-feature` skill for every branch: production
   smoke test before PR, PR body written as release notes with screenshots when UI changed,
@@ -50,13 +54,18 @@ re-debate the fixed decisions in it.
   give me the exact `railway variable set` commands or dashboard path.
 - Never `cd` in shell commands; `git status` before the first commit; capture identifiers from tool
   output instead of assuming them.
+- After every value you set (Railway variables, repo settings, rulesets, IaC apply) read it back and
+  compare it with what you intended before moving on. Copy pinned versions from the reference
+  verbatim; never retype them. Chain destructive git commands with `&&`, never `;`.
 
 ## Definition of done
 
 1. `main` is green, every PR merged through CI, no force merges.
 2. The app is live on Railway: `/api/health` reports the database up, unknown `/api/*` is JSON 404,
    `/` serves the SPA, OAuth start redirects to Google (or 503 "not configured" until I add
-   credentials).
+   credentials), **and** the deploy log line `OAuth redirect URI: https://<domain>/api/auth/google/callback`
+   matches the domain exactly. When I tell you the credentials are set, verify the 302 `redirect_uri`
+   before reporting.
 3. `.railway/railway.ts` describes the live environment; `railway config plan` shows no drift (or you
    tell me it could not be verified and why).
 4. README: architecture, local dev, auth flow, testing strategy, delivery workflow, deployment model,
@@ -79,6 +88,8 @@ re-debate the fixed decisions in it.
 | Deploy at the end                                                         | Provision as soon as `/api/health` exists; iterate on deploy feedback                                                   |
 | "Explain what is manual"                                                  | `MANUAL_STEPS.md` with commands is part of the definition of done                                                       |
 | Constraints implicit                                                      | GitHub plan, Railway plan, region, merge policy, Dependabot timing stated up front                                      |
+| Plan approval implied by "approve once"                                   | Plan posted in chat, placeholders resolved in one question, explicit yes before any write (second-run lesson)           |
+| "Verify it works" = health 200                                            | Read back every value set; deploy log shows the OAuth redirect URI; post-credentials 302 check (second-run lesson)      |
 
 ## Skills shipped with this repo (`.claude/skills/`)
 

@@ -29,10 +29,19 @@ step "Pointing .railway/railway.ts at $REPO"
 sed -i.bak -E "s#^const REPO = \".*\";#const REPO = \"$REPO\";#" .railway/railway.ts && rm -f .railway/railway.ts.bak
 
 step "GitHub repository $REPO"
+# Order matters: create -> HTTPS remote -> push -> settings -> ruleset. `--push` would use gh's git
+# protocol (often SSH, possibly another account's key), and a ruleset created before the first push
+# rejects that push ("push declined due to repository rule violations").
 if ! gh repo view "$REPO" >/dev/null 2>&1; then
-  gh repo create "$REPO" --public --source . --remote origin --push
+  gh repo create "$REPO" --public >/dev/null
 fi
-git remote set-url origin "https://github.com/$REPO.git"
+if git remote get-url origin >/dev/null 2>&1; then
+  git remote set-url origin "https://github.com/$REPO.git"
+else
+  git remote add origin "https://github.com/$REPO.git"
+fi
+git config credential.helper '!gh auth git-credential'   # repo-local: HTTPS pushes use gh's token
+git push -u origin "$(git branch --show-current)"
 gh api -X PATCH "repos/$REPO" -f allow_auto_merge=true -f delete_branch_on_merge=true \
   -f allow_merge_commit=false -f allow_rebase_merge=false -f allow_squash_merge=true \
   -f squash_merge_commit_title=PR_TITLE -f squash_merge_commit_message=PR_BODY >/dev/null
@@ -53,20 +62,39 @@ if ! railway status --json >/dev/null 2>&1; then
 fi
 
 step "Applying infrastructure (.railway/railway.ts)"
-railway config apply --yes
+railway config apply --yes --verbose
+
+step "Verifying the live environment matches the file"
+# The Postgres template deploy has been seen to ignore `region` and land in Railway's default.
+# Right after the first apply the database is empty, so a destructive move costs nothing; later it
+# would drop data. Exit code 2 = changes pending.
+if railway config plan --detailed-exit-code >/dev/null 2>&1; then
+  echo "No drift."
+else
+  echo "Drift right after apply (typically the database region). Applying while the database is still empty:"
+  railway config plan --verbose
+  railway config apply --yes --confirm-destructive --verbose
+  railway config plan --detailed-exit-code || { echo "Still drifting; inspect with: railway config plan --verbose"; exit 1; }
+fi
 
 step "Secrets (only set when absent)"
-existing="$(railway variables --service app --json 2>/dev/null || echo '{}')"
+existing="$(railway variable list --service app --json 2>/dev/null || echo '{}')"
 if ! grep -q SESSION_SECRET <<<"$existing"; then
-  railway variables --service app --set "SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n')" --skip-deploys
+  railway variable set "SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n')" --service app --skip-deploys
 fi
 
 step "Public domain"
-DOMAIN="$(railway domain --service app 2>/dev/null | grep -oE '[a-z0-9.-]+\.up\.railway\.app' | head -1 || true)"
+# `railway domain --json` returns {"domain":"https://..."} WITH the scheme; strip it, then add exactly one.
+DOMAIN="$(railway domain --service app --json 2>/dev/null | jq -r '.domain // empty' | sed -E 's#^https?://##; s#/*$##')"
 if [ -n "$DOMAIN" ]; then
-  railway variables --service app --set "APP_URL=https://$DOMAIN"
+  railway variable set "APP_URL=https://$DOMAIN" --service app
+  got="$(railway variable list --service app --json | jq -r '.APP_URL // empty')"
+  if [ "$got" != "https://$DOMAIN" ]; then
+    echo "APP_URL read-back mismatch: wanted https://$DOMAIN, got '$got'"; exit 1
+  fi
+  echo "APP_URL = $got (verified)"
 else
-  echo "Could not determine the generated domain; set APP_URL manually."
+  echo "Could not determine the generated domain; set APP_URL manually and read it back."
   DOMAIN="<your-service>.up.railway.app"
 fi
 
@@ -76,7 +104,10 @@ Done. Remaining manual steps:
   1. Create a Google OAuth 2.0 Web client (https://console.cloud.google.com/apis/credentials) with redirect URIs:
        https://$DOMAIN/api/auth/google/callback
        http://localhost:5173/api/auth/google/callback
-     then: railway variables --service app --set GOOGLE_CLIENT_ID=... --set GOOGLE_CLIENT_SECRET=...
+     then: railway variable set "GOOGLE_CLIENT_ID=..." --service app --skip-deploys
+           printf '%s' "<secret>" | railway variable set GOOGLE_CLIENT_SECRET --stdin --service app   # this one redeploys
+     verify: curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://$DOMAIN/api/auth/google
+             -> 302 and a redirect_uri of exactly https://$DOMAIN/api/auth/google/callback; then sign in once for real.
   2. Create a Railway project token (production) and store it for the IaC workflow:
        gh secret set RAILWAY_TOKEN --repo $REPO
   3. Ensure your gh token has the 'workflow' scope (gh auth refresh -s workflow) so PRs

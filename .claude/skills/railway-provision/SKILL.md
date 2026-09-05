@@ -26,15 +26,34 @@ verified later with `railway config plan`.
 
 ## Path A: IaC via CLI
 
+Ship `.railway/railway.ts` and the `railway` dev dependency **in the first slice**, so the plan can
+run from the repo from minute one. The CLI evaluates the file with the SDK from `node_modules`; a
+scratch directory needs its own `npm i railway` and `railway link`, which is one detour too many.
+
 ```bash
-railway whoami && railway link -p <projectId> -e production      # or railway init --name <project>
+railway whoami && railway init --name <project> --workspace "<workspace>" --json   # capture the project id from the JSON
 pnpm add -w -D railway                                             # IaC SDK for .railway/railway.ts
-railway config plan                                                # review; values are redacted
-railway config apply --yes
+railway config plan                                                # expect "N to add": read the list
+railway config apply --yes --verbose                               # read the applied list: count must match the plan
+railway config plan                                                # MUST be "already up to date" now; see "Region drift" below
 railway variable set "SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n')" --service app --skip-deploys
-railway domain --service app
-railway variable set "APP_URL=https://<domain>" --service app
+DOMAIN=$(railway domain --service app --json | jq -r .domain | sed -E 's#^https?://##; s#/*$##')   # --json returns the domain WITH its scheme
+railway variable set "APP_URL=https://$DOMAIN" --service app
+railway variable list --service app --json | jq -r .APP_URL        # read back: must equal https://$DOMAIN, exactly one "https://"
 ```
+
+**Read back everything you set.** A value written once and never re-read caused the only production
+bug of the second run: `APP_URL=https://https://<domain>` (the domain command already includes the
+scheme). Health was 200, the 503 "not configured" check passed, and Google rejected the first real
+login with `Error 400: invalid_request`. The server now refuses such a value at boot (`envSchema.ts`)
+and logs `OAuth redirect URI: ...` on start; check that line in the deploy logs.
+
+**Region drift.** In the current SDK/CLI the `postgres("Postgres", { region })` template deploy can
+ignore `region` and land in Railway's default (`us-west2`) while the app honours `replicas`. The plan
+right after the first apply then shows `~ Move database Postgres to <region>` marked destructive.
+Apply it **immediately, while the database is empty**, and say so before running it:
+`railway config apply --yes --confirm-destructive`. A deploy that starts during the move fails in
+pre-deploy with `getaddrinfo ENOTFOUND postgres.railway.internal`; the next push succeeds.
 
 Keep `.github/workflows/railway-config.yml` guarded so it skips until `RAILWAY_TOKEN` exists.
 
@@ -65,9 +84,17 @@ Order matters: variables before source, so the first deploy does not crash on en
 
 ## Verification checklist
 
-- [ ] Deploy status SUCCESS, healthcheck passed
-- [ ] Pre-deploy migration log lines present
-- [ ] `/api/health` 200 with `db: up`; unknown `/api/*` is JSON 404; `/` serves the SPA
-- [ ] OAuth start returns 503 "not configured" until credentials are set, then 302 to Google
-- [ ] Both services in the same, intended region
-- [ ] `railway config plan` reports no drift (once the CLI is logged in)
+Run it after the first deploy **and again after every variable change**; the 503 path proves nothing
+about the redirect URI.
+
+- [ ] Deploy status SUCCESS, healthcheck passed (`railway deployment list --service app --json | jq '.[0].status'`)
+- [ ] Pre-deploy migration log lines present (`railway logs -s app -d <id>`)
+- [ ] Deploy log line `OAuth redirect URI: https://<domain>/api/auth/google/callback` matches the domain exactly
+- [ ] `railway variable list --service app --json | jq -r .APP_URL` equals `https://<domain>` (one scheme, no trailing slash)
+- [ ] `/api/health` 200 with `db: up`; unknown `/api/*` is JSON 404; `/` and a deep link serve the SPA
+- [ ] OAuth start returns 503 "not configured" until credentials are set; **after** the user sets them,
+      `curl -s -o /dev/null -w '%{redirect_url}' https://<domain>/api/auth/google` must contain
+      `redirect_uri=https%3A%2F%2F<domain>%2Fapi%2Fauth%2Fgoogle%2Fcallback` and the user should try one real login
+- [ ] Both services in the same, intended region (`railway status --json` → `serviceInstances[].latestDeployment.meta.serviceManifest.deploy.multiRegionConfig`)
+- [ ] `railway config plan` reports no drift
+- [ ] Tell the user that setting variables redeploys only when the last `variable set` runs without `--skip-deploys` (or `railway redeploy --service app --yes`)

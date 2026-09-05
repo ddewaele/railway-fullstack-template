@@ -61,9 +61,16 @@ Google has no API for this; use the console.
 railway variable set NODE_ENV=production --service app --skip-deploys
 railway variable set 'DATABASE_URL=${{Postgres.DATABASE_URL}}' --service app --skip-deploys
 railway variable set "SESSION_SECRET=$(openssl rand -base64 48 | tr -d '\n')" --service app --skip-deploys
-railway domain --service app                                      # generate the public domain
-railway variable set "APP_URL=https://<domain>" --service app     # triggers a redeploy
+railway domain --service app                                      # generate the public domain (prints it WITH https://)
+railway variable set "APP_URL=https://<domain>" --service app     # triggers a redeploy; <domain> without scheme
+railway variable list --service app --json | jq -r .APP_URL       # read back: exactly one "https://", no trailing slash
 ```
+
+A doubled scheme (`https://https://<domain>`) passes a plain URL check but makes Google reject every
+login with `Error 400: invalid_request`. Since this change the server refuses to start with such a
+value and logs `OAuth redirect URI: …` at boot; check that line in the Railway deploy logs. Variables
+set with `--skip-deploys` need a final `railway variable set` without it, or
+`railway redeploy --service app --yes`, before the running container sees them.
 
 ## 6. Railway project token → GitHub secret (enables the IaC workflow)
 

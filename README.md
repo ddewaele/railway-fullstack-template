@@ -115,9 +115,11 @@ Useful scripts (run from the repo root):
 | `pnpm db:generate`                    | create a migration from schema changes                   |
 | `pnpm railway:plan` / `railway:apply` | preview / apply `.railway/railway.ts`                    |
 
-Configuration is read from `process.env`, validated by `apps/server/src/env.ts`. Outside
-production a `.env` file in the repo root is loaded automatically (Node's built-in loader, no
-dotenv dependency). See `.env.example` for every variable.
+Configuration is read from `process.env`, validated by the schema in `apps/server/src/envSchema.ts`
+(`env.ts` applies it and exits with a readable list of issues). `APP_URL` must be a bare origin: a
+value like `https://https://host` or one with a path is rejected at boot instead of producing a
+malformed OAuth redirect URI. Outside production a `.env` file in the repo root is loaded
+automatically (Node's built-in loader, no dotenv dependency). See `.env.example` for every variable.
 
 ## Authentication flow
 
@@ -140,11 +142,12 @@ Failures in the callback (state mismatch, unverified email, Google error) redire
 
 Three layers, all run in CI on every pull request:
 
-| Layer           | Tool                             | Where                          | Notes                                                                                                                                                                      |
-| --------------- | -------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| API integration | Vitest                           | `apps/server/src/**/*.test.ts` | Runs against a real Postgres (`app_test`), truncated between tests. Google's HTTP endpoints are stubbed via `fetch`.                                                       |
-| UI components   | Vitest + Testing Library (jsdom) | `apps/web/src/**/*.test.tsx`   | `fetch` is stubbed with a tiny route mock.                                                                                                                                 |
-| End-to-end      | Playwright                       | `e2e/`                         | Boots the **production build**, seeds a user + session directly in Postgres (Google login cannot be automated), drives Chromium. Screenshots are uploaded as CI artifacts. |
+| Layer           | Tool                             | Where                          | Notes                                                                                                                                                                                                                          |
+| --------------- | -------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| API integration | Vitest                           | `apps/server/src/**/*.test.ts` | Runs against a real Postgres (`app_test`), truncated between tests. Google's HTTP endpoints are stubbed via `fetch`.                                                                                                           |
+| UI components   | Vitest + Testing Library (jsdom) | `apps/web/src/**/*.test.tsx`   | `fetch` is stubbed with a tiny route mock.                                                                                                                                                                                     |
+| End-to-end      | Playwright                       | `e2e/`                         | Boots the **production build**, seeds a user + session directly in Postgres (Google login cannot be automated), drives Chromium. Screenshots are uploaded as CI artifacts.                                                     |
+| Smoke           | curl, in `ci.yml`                | after `pnpm build`             | Boots `node apps/server/dist/index.js` as Railway does and asserts `/api/health` (db up), `/` and a deep link (200), unknown `/api/*` (JSON 404), OAuth start (503 without credentials) and the `OAuth redirect URI` log line. |
 
 `packages/shared` holds the Zod schemas, so the exact same validation runs in the browser
 (instant feedback) and on the server (source of truth).
