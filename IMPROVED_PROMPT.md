@@ -82,11 +82,16 @@ re-debate the fixed decisions in it.
 
 ## Skills shipped with this repo (`.claude/skills/`)
 
-| Skill                | Purpose                                                                                                                           |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `preflight`          | Guided readiness checklist; runs `scripts/preflight.sh`, asks the plan-changing questions, hands the user their interactive tasks |
-| `fullstack-scaffold` | Fixed decisions, feature-slice recipe, gotchas for this stack                                                                     |
-| `ship-feature`       | Branch → verify like production → PR as release notes → auto-merge → sync                                                         |
-| `railway-provision`  | IaC-first, MCP fallback provisioning with the exact order, region rules and verification checklist                                |
+| Skill                | Purpose                                                                                                                                            |
+| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `preflight`          | Guided readiness checklist; runs `.claude/skills/preflight/preflight.sh`, asks the plan-changing questions, hands the user their interactive tasks |
+| `fullstack-scaffold` | Fixed decisions, feature-slice recipe, gotchas for this stack                                                                                      |
+| `ship-feature`       | Branch → verify like production → PR as release notes → auto-merge → sync                                                                          |
+| `railway-provision`  | IaC-first, MCP fallback provisioning with the exact order, region rules and verification checklist                                                 |
 
-They are project-scoped. To reuse them everywhere, copy the directories to `~/.claude/skills/`.
+They are project-scoped and self-contained (the preflight checker ships inside its skill directory). To reuse them everywhere, copy the directories to `~/.claude/skills/`:
+
+```bash
+curl -sL https://github.com/ddewaele/railway-fullstack-template/archive/refs/heads/main.tar.gz \
+  | tar -xz --strip-components=3 -C ~/.claude/skills railway-fullstack-template-main/.claude/skills
+```

@@ -2,8 +2,13 @@
 # Readiness check for building/deploying this stack. Prints a table and exits 1 if
 # anything the automated workflow depends on is missing. Read-only: changes nothing.
 #
-# Usage: scripts/preflight.sh [--port 5433] [--repo owner/name] [--railway-project <id>]
+# Lives inside the `preflight` skill so it travels with it (project or ~/.claude/skills).
+# Usage: bash .claude/skills/preflight/preflight.sh [--port 5433] [--repo owner/name] [--railway-project <id>]
+#   or:  bash ~/.claude/skills/preflight/preflight.sh ...   (from any project directory)
 set -uo pipefail
+
+# Run project checks (.nvmrc, .env, docker compose, git identity) from the repo root when inside one.
+cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
 PORT=5433; REPO=""; RW_PROJECT=""
 while [ $# -gt 0 ]; do case "$1" in

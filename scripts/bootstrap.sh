@@ -17,6 +17,9 @@ cd "$ROOT"
 
 step() { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 
+step "Preflight"
+bash .claude/skills/preflight/preflight.sh --repo "$REPO" || { echo "Fix the ❌ rows above, then rerun."; exit 1; }
+
 step "Checking tools"
 for t in gh railway pnpm node openssl; do command -v "$t" >/dev/null || { echo "missing: $t"; exit 1; }; done
 gh auth status >/dev/null

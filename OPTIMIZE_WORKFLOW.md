@@ -40,7 +40,7 @@ Ordered by how much time they cost. **Cost** is a rough estimate of wasted round
 
 ## 3. What would have made it faster
 
-### A preflight script (proposed: `scripts/preflight.sh`)
+### A preflight script (now bundled in the `preflight` skill as `.claude/skills/preflight/preflight.sh`)
 
 Runs before planning and prints a readiness table:
 
