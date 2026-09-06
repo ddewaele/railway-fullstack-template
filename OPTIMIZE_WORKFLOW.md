@@ -97,3 +97,65 @@ Anything red becomes a user task listed at the top of the plan, to be done while
 - [ ] Each PR: `pnpm check`, `pnpm build && pnpm start` smoke test, then open PR and arm auto-merge using the returned PR number.
 - [ ] Provision infra as soon as the health endpoint exists; iterate on deploy feedback in parallel with features.
 - [ ] Verify IaC against live state (`railway config plan`) before declaring done.
+
+---
+
+# Second run: railway-todo-app (2026-09-05)
+
+The template was used as the reference for a second project in a fresh directory, with the
+`IMPROVED_PROMPT.md` prompt. 8 PRs, about 15 minutes from first commit to the live SPA, every PR
+auto-merged on a green `ci`, no force merges. Most first-run lessons held. What follows is what did
+**not** hold, plus a candid look at the agent's own process, because that is where the remaining
+time went.
+
+## 6. Incidents of the second run
+
+| #   | Incident                                                                                                                                                                                                                                      | Root cause                                                                                                                                                                                                                                                   | Cost   | Prevention (now in the repo)                                                                                                                                                                                                                                                                                |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Google sign-in failed for the first real user** with `Error 400: invalid_request`. `APP_URL` on Railway was `https://https://<domain>`, so the `redirect_uri` was malformed. Found after the "definition of done" had been reported as met. | `railway domain --json` returns the domain **with** its scheme; the provisioning step prefixed `https://` again. The value was printed in the agent's own output one line earlier and not read. `z.url()` accepts it. The 503 check never touches `APP_URL`. | High   | `envSchema.ts`: `APP_URL` must be a bare origin (unit-tested); startup logs `OAuth redirect URI: …`; CI smoke test greps that line; `bootstrap.sh` reads `APP_URL` back and fails on mismatch; `railway-provision` checklist re-runs after every variable change and includes a post-credentials 302 check. |
+| 2   | **Four Dependabot PRs one minute after enabling it**: `actions/checkout@v4`, `setup-node@v4`, `pnpm/action-setup@v4`, `upload-artifact@v4` bumped to the majors the template already pins.                                                    | The CI file was retyped from memory with `@v4` instead of copied from the reference (`@v7`, `@v6`). "Dependabot last" protected the build session, not the user's inbox.                                                                                     | Medium | Copy pinned versions verbatim (`cp`/`sed`), `diff -r` against the reference before the first commit (`fullstack-scaffold`, `ship-feature`).                                                                                                                                                                 |
+| 3   | **Postgres created in `us-west2`** despite `region: "ams"`; the plan right after apply showed a destructive move. Moved while empty; one deploy that overlapped the move failed in pre-deploy (`ENOTFOUND postgres.railway.internal`).        | Template deploy ignored `region`; the verbose apply listed 3 changes for a plan of 2 and nobody compared the counts.                                                                                                                                         | Medium | `bootstrap.sh` runs `railway config plan --detailed-exit-code` right after apply and applies the move while empty; `railway-provision` documents the drift and the deploy-during-move failure.                                                                                                              |
+| 4   | **First push to `main` rejected** by the ruleset created seconds earlier; before that `gh repo create --push` had tried SSH with the wrong account's key.                                                                                     | Preflight had flagged the SSH/gh identity mismatch, and the finding was not turned into a guard. Ruleset before first push.                                                                                                                                  | Low    | `bootstrap.sh`: create → HTTPS remote + repo-local credential helper → push → settings → ruleset. `preflight.sh` warns on `gh config get git_protocol = ssh` with a mismatched identity.                                                                                                                    |
+| 5   | **`git branch -D` ran after a failed `rebase --onto`** (dirty tree). Harmless by luck.                                                                                                                                                        | Commands chained with `;`.                                                                                                                                                                                                                                   | Low    | `ship-feature`: `&&` for anything destructive; commit or `stash -u` before rebasing; prefer waiting when CI is under ~3 minutes.                                                                                                                                                                            |
+| 6   | **Stale Docker volume** from an earlier project with the same directory name was mounted before anyone looked at it. Empty, so harmless.                                                                                                      | Compose project name = directory name; check happened after `up`.                                                                                                                                                                                            | Low    | `preflight.sh` warns about `<dir>_pgdata` volumes; check before `up`.                                                                                                                                                                                                                                       |
+| 7   | **`railway config plan` failed from a scratch directory** ("SDK is not installed"); needed `npm i railway` and a second `railway link` there.                                                                                                 | IaC file was kept out of the repo until slice 6.                                                                                                                                                                                                             | Low    | Ship `.railway/railway.ts` and the `railway` dev dependency in slice 1 (`fullstack-scaffold`).                                                                                                                                                                                                              |
+| 8   | **`railway logs -d <id>` said "No service linked"** in a linked directory.                                                                                                                                                                    | `-s app` is required for deployment logs.                                                                                                                                                                                                                    | Low    | Documented in `ship-feature` step 9.                                                                                                                                                                                                                                                                        |
+
+## 7. Process failures (the expensive part)
+
+These did not break the app, but they are the ones the user noticed.
+
+1. **The user never saw the plan.** The brief said "I approve the plan once". The plan went to a plan
+   file, plan mode was exited, three open decisions were answered, and building started. The plan
+   text was never posted in the chat and no explicit approval was given. The `preflight` skill now has
+   a "Plan approval" section: post the plan in chat, one AskUserQuestion, no writes before a yes.
+2. **Silent stretches.** About a dozen read-only tool calls before planning with no status line; the
+   user had to ask whether anything was happening. `ship-feature` step 10: one line every few calls.
+3. **Reuse was not announced.** The reference repo already _is_ the app, so the product code was
+   copied file by file with port/name edits; effort went into slicing, migrations, tests and delivery.
+   Correct choice, but the user learned it by asking. Say it in the plan.
+4. **"Done" was declared with a latent bug.** Every listed check passed, and none of them exercised
+   the value that was wrong. A checklist only verifies what it contains; after a config write, the
+   check is "read it back", not "the service still starts".
+5. **A destructive apply was run on the agent's own judgment.** Justified (empty database, region was
+   the user's decision) and mentioned, but mentioned while doing it. Announce destructive operations
+   before running them, even when the answer is obvious.
+
+## 8. Efficiency notes
+
+- Stacked branches with a ~2-minute CI saved almost nothing and cost three `rebase --onto` calls and
+  a stash dance. Wait for the merge when CI is fast.
+- `pnpm check` ran twice per slice (before and after an identical-tree rebase).
+- Playwright was installed twice (scratch dir for screenshots, then the repo) and the `railway` SDK
+  twice (scratch dir, then the repo). Both belong in slice 1's dev dependencies.
+- Screenshots for the web PR needed a seeded session; `e2e/helpers.ts` already knows how. Reuse it
+  via a small script instead of hand-rolling HMAC + `psql`.
+
+## 9. Priorities for the third run
+
+1. Show the plan in chat and wait for an explicit yes.
+2. After every `set`, `apply` or `create`: read the value or state back and compare it with intent.
+3. Copy pinned versions and config from the reference verbatim; `diff -r` before the first commit.
+4. Turn every preflight warning into a guard in the next command that could trip on it.
+5. `&&`, never `;`, before anything that deletes, forces or overwrites.
+6. Announce destructive operations before running them.

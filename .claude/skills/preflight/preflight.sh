@@ -43,6 +43,12 @@ if have gh && gh auth status >/dev/null 2>&1; then
   fi
   sshid=$(ssh -T git@github.com 2>&1 | grep -oE "Hi [^!]+" | cut -d' ' -f2)
   [ -n "$sshid" ] && [ "$sshid" != "$acct" ] && row warn "ssh identity" "SSH key is '$sshid' but gh is '$acct' -> use an HTTPS remote + repo-local user.email"
+  proto=$(gh config get git_protocol 2>/dev/null || echo ssh)
+  if [ "$proto" = "ssh" ] && [ -n "$sshid" ] && [ "$sshid" != "$acct" ]; then
+    row warn "gh git_protocol" "ssh: 'gh repo create --push' would push with the wrong key -> create without --push, set the HTTPS remote, push (bootstrap.sh does this)"
+  fi
+  helper=$(git config credential.helper 2>/dev/null || true)
+  [ -n "$sshid" ] && [ "$sshid" != "$acct" ] && [ -z "$helper" ] && row warn "credential helper" "unset -> git config credential.helper '!gh auth git-credential' (repo-local) so HTTPS pushes use gh's token"
   git config user.email >/dev/null 2>&1 && row ok "git user.email" "$(git config user.email)" || row warn "git user.email" "unset"
 else
   row fail "gh auth" "run: gh auth login"
@@ -61,6 +67,12 @@ if have docker && docker info >/dev/null 2>&1; then
   if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
     if docker compose ps --status running 2>/dev/null | grep -q postgres; then row ok "port $PORT" "used by this project's Postgres"; else row fail "port $PORT" "in use by something else -> set POSTGRES_PORT or stop it"; fi
   else row ok "port $PORT" "free"; fi
+  # docker compose derives the project name from the directory; a volume left by an earlier project
+  # with the same directory name is silently reused (old tables, old init state).
+  cproj=$(basename "$PWD" | tr '[:upper:]' '[:lower:]' | tr -cd 'a-z0-9_-')
+  if docker volume ls -q 2>/dev/null | grep -qx "${cproj}_pgdata" && ! docker compose ps --status running 2>/dev/null | grep -q postgres; then
+    row warn "docker volume" "${cproj}_pgdata exists from an earlier run -> data is reused; 'docker compose down -v' for a clean start"
+  fi
 else row fail "docker daemon" "not running"; fi
 [ -f .env ] && row ok ".env" "present (git-ignored)" || row warn ".env" "missing -> cp .env.example .env"
 if [ -f .env ]; then

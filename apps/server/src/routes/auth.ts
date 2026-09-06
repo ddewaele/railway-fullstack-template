@@ -12,7 +12,7 @@ import {
 import { toPublicUser, upsertGoogleUser } from "../auth/user.js";
 import { env } from "../env.js";
 
-const CALLBACK_PATH = "/api/auth/google/callback";
+export const CALLBACK_PATH = "/api/auth/google/callback";
 
 /**
  * Google OAuth 2.0 (authorization code) flow:
