@@ -202,6 +202,8 @@ const app = service("app", {
 | Variables  | `DATABASE_URL = ${{Postgres.DATABASE_URL}}` (private network), `APP_URL` = the public domain, `NODE_ENV=production`, `SESSION_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
 | Secrets    | Never in git: declared as `preserve()` in the IaC file, set once via dashboard, CLI or MCP                                                                                        |
 
+Idle for a while? `/railway-teardown` pauses or stops the services (data kept) and `/railway-restore` brings them back; see `MANUAL_STEPS.md` §11 for the raw commands.
+
 Workflow for infra changes: edit `railway.ts` → PR → the **Railway config** GitHub Action comments
 the plan → merge applies exactly that plan (`railwayapp/config@v1`, needs `RAILWAY_TOKEN`).
 Locally: `railway login && railway link`, then `pnpm railway:plan` / `pnpm railway:apply`.

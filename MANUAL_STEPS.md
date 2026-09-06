@@ -137,6 +137,18 @@ pnpm db:migrate
 pnpm dev                      # server :3000, web :5173
 ```
 
+## 11. Cutting cost when the app is idle
+
+```bash
+railway down --service app --yes                          # pause: zero app compute, domain + variables kept
+railway down --service Postgres --yes                     # stop DB too (volume + data kept); back up first (see railway-teardown skill)
+railway redeploy --service Postgres --from-source --yes   # resume DB
+railway redeploy --service app --from-source --yes        # resume app (rebuilds from GitHub main)
+railway delete --project 59dd6dc7-8022-4459-9940-a4762db12b50 --yes   # destroy everything; new domain on re-provision
+```
+
+Skills: `/railway-teardown` (with the pg_dump backup over `railway connect Postgres --tunnel-only`) and `/railway-restore`.
+
 ## Known gotchas
 
 - Railway region ids are short codes (`ams`, `iad`, `sin`, ...). `europe-west4` is the legacy name; using it in `.railway/railway.ts` shows up as a destructive "move database" in `railway config plan`.
