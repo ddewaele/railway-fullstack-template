@@ -147,7 +147,7 @@ railway redeploy --service app --from-source --yes        # resume app (rebuilds
 railway delete --project 59dd6dc7-8022-4459-9940-a4762db12b50 --yes   # destroy everything; new domain on re-provision
 ```
 
-Skills: `/railway-teardown` (with the pg_dump backup over `railway connect Postgres --tunnel-only`) and `/railway-restore`.
+Skills: `/railway-teardown` (backup via a temporary TCP proxy + `docker run postgres:18-alpine pg_dump`; `railway ssh` needs a human-linked key) and `/railway-restore`.
 
 ## Known gotchas
 

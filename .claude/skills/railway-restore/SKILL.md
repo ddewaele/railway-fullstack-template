@@ -53,13 +53,12 @@ needed. The MCP `redeploy` tool is an alternative when the CLI is not logged in.
    Then **the user** adds `https://<new-domain>/api/auth/google/callback` to the Google OAuth
    client's authorised redirect URIs (Cloud Console; no API). Until then login fails with
    `redirect_uri_mismatch`.
-4. Restore the database once the app has deployed (migrations create the schema; the dump has data):
+4. Restore the database once the app has deployed (migrations create the schema; the dump has data).
+   Same mechanics as the backup: temporary TCP proxy (MCP `create-tcp-proxy` on Postgres:5432, read the
+   endpoint with `list-tcp-proxies`) and a Postgres 18 client in Docker, then `delete-tcp-proxy`:
    ```bash
-   railway connect Postgres --tunnel-only --port 15432 &
-   sleep 5
-   PGPASSWORD="$(railway variable list --service Postgres --json | node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).PGPASSWORD))')" \
-     pg_restore -h localhost -p 15432 -U postgres -d railway --data-only --no-owner backup-*.dump
-   kill %1
+   export PGPASSWORD="$(railway variable list --service Postgres --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).PGPASSWORD))')"
+   docker run --rm -i -e PGPASSWORD postgres:18-alpine pg_restore -h <proxy-host> -p <proxy-port> -U postgres -d railway --data-only --no-owner < ignore/backup-<ts>.dump
    ```
    Use `--clean --if-exists` instead of `--data-only` if the dump should fully replace the schema
    (then run `railway redeploy --service app --from-source --yes` afterwards so migrations are re-checked).

@@ -35,17 +35,27 @@ Verified on this project: `railway redeploy --service app --from-source --yes` b
 
 ## Tier 2: stop app and Postgres (keep data)
 
-1. **Backup first**, through an SSH tunnel so no public TCP proxy is needed:
+1. **Backup first.** Two things learned running this for real: `railway ssh` needs an SSH key that a
+   human has linked to the Railway account (registering it with `railway ssh keys add` is not enough,
+   the first connection returns a `signup_required` URL), and a local `pg_dump` older than the server
+   (Hobby template runs Postgres 18) refuses to dump. The reliable path is a **temporary TCP proxy**
+   plus a matching client in Docker:
    ```bash
-   railway connect Postgres --tunnel-only --port 15432 &   # prints local connection details
-   sleep 5
-   PGPASSWORD="$(railway variable list --service Postgres --json | node -e 'process.stdin.on("data",d=>console.log(JSON.parse(d).PGPASSWORD))')" \
-     pg_dump -h localhost -p 15432 -U postgres -d railway -Fc -f "backup-$(date +%Y%m%d-%H%M).dump"
-   kill %1
-   ls -la backup-*.dump                                     # must be > 0 bytes
+   # 1) expose Postgres briefly: MCP create-tcp-proxy (service Postgres, port 5432) or dashboard → Networking → TCP Proxy
+   #    then read the endpoint: MCP list-tcp-proxies → e.g. altaria.proxy.rlwy.net:38619
+   export PGPASSWORD="$(railway variable list --service Postgres --json | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).PGPASSWORD))')"
+   H=<proxy-host>; P=<proxy-port>; TS=$(date +%Y%m%d-%H%M); mkdir -p ignore
+   until docker run --rm -e PGPASSWORD postgres:18-alpine pg_isready -h $H -p $P -U postgres | grep -q accepting; do sleep 5; done
+   docker run --rm -e PGPASSWORD postgres:18-alpine pg_dump -h $H -p $P -U postgres -d railway -Fc > ignore/backup-$TS.dump
+   docker run --rm -e PGPASSWORD postgres:18-alpine pg_dump -h $H -p $P -U postgres -d railway -Fp > ignore/backup-$TS.sql
+   chmod 600 ignore/backup-$TS.*
+   docker run --rm -i postgres:18-alpine pg_restore -l < ignore/backup-$TS.dump | grep -c "TABLE DATA"   # expect 4 (3 tables + drizzle migrations)
+   docker run --rm -e PGPASSWORD postgres:18-alpine psql -h $H -p $P -U postgres -d railway -Atc "select 'users',count(*) from users union all select 'todos',count(*) from todos"
+   # 2) close the door again: MCP delete-tcp-proxy (port 5432)
    ```
-   (User/database names come from the service variables `PGUSER`/`PGDATABASE`; check them if the
-   defaults above do not match.) Keep the dump outside the repo or in `ignore/`; it contains user data.
+   `PGUSER`/`PGDATABASE` are `postgres`/`railway` on the official template; check the service variables
+   if yours differ. The proxy exposes the database publicly (password-protected) for the minute this
+   takes; delete it immediately afterwards. Keep dumps in `ignore/` (git-ignored); they contain user data.
 2. Remove both deployments:
    ```bash
    railway down --service app --yes
@@ -62,8 +72,12 @@ Verified on this project: `railway redeploy --service app --from-source --yes` b
    and the Google OAuth client's redirect URIs.
 3. Delete:
    ```bash
-   railway delete --project <projectId> --yes               # add --2fa-code <code> if 2FA is enabled
+   railway delete --project <projectId> --yes --json        # add --2fa-code <code> if 2FA is enabled
+   railway status                                           # "Project is deleted"; MCP get-status → "Project not found"
+   railway unlink
    ```
+   Railway soft-deletes: `railway list --json` keeps showing the project with a `deletedAt` about 48 h
+   in the future (grace period). The domain answers 404 immediately.
    Alternative through IaC (keeps the empty project): set `resources: []` in `.railway/railway.ts`
    and run `railway config apply --yes --confirm-destructive`; revert the file afterwards so the
    repo still describes the intended environment.
