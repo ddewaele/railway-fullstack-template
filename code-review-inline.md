@@ -4,7 +4,9 @@ Output of `/code-review . high` over the committed tree (apps/, packages/, e2e/,
 Every finding was verified against the code and the installed library sources. A separate security review
 found no exploitable issues; the items below are correctness, resilience and hygiene bugs.
 
-Status legend: ⬜ open · ✅ fixed (link the PR when closing an item).
+Status legend: ⬜ open · 🟡 partially fixed · ✅ fixed (link the PR when closing an item).
+
+A parallel full-tree review lives in `code-review-clean.md` (12 findings). Overlap is mapped in the last section; items 6, 8, 9 and 10 below are unique to this file.
 
 ## Correctness
 
@@ -15,7 +17,9 @@ Status legend: ⬜ open · ✅ fixed (link the PR when closing an item).
 - **Scenario:** User clicks Cancel on the consent screen → consent screen reappears → repeat until they accept or close the tab.
 - **Fix:** On the callback route, check `c.req.query("error")` before invoking the middleware and redirect to `${APP_URL}/login?error=oauth_failed`. Add an integration test for the `error=access_denied` callback.
 
-### 2. ⬜ `APP_URL` with a trailing slash, or missing in production, silently breaks OAuth
+### 2. 🟡 `APP_URL` with a trailing slash, or missing in production, silently breaks OAuth
+
+> Partially fixed by #19: `envSchema.ts` now normalises `APP_URL` to `URL.origin`, so the trailing-slash case is closed. Still open: the production default of `http://localhost:5173` when the variable is unset.
 
 - **Where:** `apps/server/src/env.ts:10`
 - **Problem:** `z.url()` accepts `https://host/`, producing `redirect_uri=https://host//api/auth/google/callback` (Google: `redirect_uri_mismatch`). `APP_URL` also defaults to `http://localhost:5173`, so an unset variable in production boots a healthy server that sends a localhost redirect URI.
@@ -80,3 +84,21 @@ Status legend: ⬜ open · ✅ fixed (link the PR when closing an item).
 - **PR B (frontend resilience):** items 4, 5 with component tests.
 - **PR C (server runtime + hygiene):** items 6, 7, 8 (includes one migration).
 - **PR D (CI/e2e):** items 9, 10.
+
+## Cross-reference with `code-review-clean.md`
+
+| This file                            | `code-review-clean.md`                                   | Notes                                                      |
+| ------------------------------------ | -------------------------------------------------------- | ---------------------------------------------------------- |
+| 1 consent-denial loop                | 1 (High)                                                 | Same finding                                               |
+| 2 `APP_URL` validation               | —                                                        | Trailing slash fixed by #19; production default still open |
+| 3 email conflict                     | 2 (High)                                                 | Same finding                                               |
+| 4 `/auth/me` non-401 → stuck Loading | 4 (Medium)                                               | Same finding                                               |
+| 5 toggle/remove swallow errors       | 5 (Medium)                                               | Same finding; their 6 (failed sign-out) is the same class  |
+| 6 static root vs cwd                 | —                                                        | Unique here                                                |
+| 7 shutdown drops in-flight requests  | 10 (Low)                                                 | Same finding                                               |
+| 8 sessions table growth              | —                                                        | Unique here                                                |
+| 9 CI builds twice                    | —                                                        | Unique here                                                |
+| 10 hard-coded e2e port               | —                                                        | Unique here                                                |
+| —                                    | 3 `NODE_ENV=test` ships a dev React bundle in e2e        | Only in the other file                                     |
+| —                                    | 7, 8 `GET /api` and missing assets answered with the SPA | Only in the other file                                     |
+| —                                    | 9, 11, 12 preflight/bootstrap/secret-placeholder hygiene | Only in the other file                                     |
