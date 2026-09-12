@@ -26,7 +26,7 @@ jobs:
       - if: env.RAILWAY_TOKEN == ''
         run: echo "::notice title=Railway config skipped::Set the RAILWAY_TOKEN repository secret to enable IaC plans (see .railway/README.md)."
       - if: env.RAILWAY_TOKEN != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
       - if: env.RAILWAY_TOKEN != ''
         uses: railwayapp/config@v1
         with:
@@ -40,7 +40,7 @@ jobs:
       - if: env.RAILWAY_TOKEN == ''
         run: echo "::notice title=Railway config skipped::Set the RAILWAY_TOKEN repository secret to enable IaC applies (see .railway/README.md)."
       - if: env.RAILWAY_TOKEN != ''
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
       - if: env.RAILWAY_TOKEN != ''
